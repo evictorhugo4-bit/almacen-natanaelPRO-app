@@ -1757,11 +1757,11 @@ GUARDAR PRODUCTO
                 </div>
                 <div class="flex flex-wrap gap-2 items-center">
                     <!-- Tabs -->
-                    <button onclick="renderListaCat('ingresos')" id="lcTabIng"
+                    <button onclick="renderListaCat('ingresos', true)" id="lcTabIng"
                         class="px-4 py-2 rounded-xl font-black text-xs uppercase border-2 border-emerald-500 bg-emerald-500/20 text-emerald-400 transition-all">
                         📈 Ingresos
                     </button>
-                    <button onclick="renderListaCat('egresos')" id="lcTabEgr"
+                    <button onclick="renderListaCat('egresos', true)" id="lcTabEgr"
                         class="px-4 py-2 rounded-xl font-black text-xs uppercase border-2 border-slate-700 bg-slate-900 text-slate-400 transition-all">
                         📉 Gastos
                     </button>
@@ -12720,36 +12720,35 @@ const idCliente = cli ? (cli.id || cli.idSheet || '') : '';
     }
 
     // Imagen individual del registro
-    if (window._editIngEgrImgData !== null && window._editIngEgrImgData !== undefined) {
-        if (window._editIngEgrImgData === '') {
-            r.imagen = '';
-        }
-        // Si hay nueva imagen (base64), subir y luego guardar
-        if (window._editIngEgrImgData && window._editIngEgrImgData.startsWith('data:')) {
-            subirFotoImgBB(window._editIngEgrImgData, function(url) {
-                if (!url) return;
-                r.imagen = url;
-                fetchSheets({ method:'POST', body: JSON.stringify({
-                    tipo: ingEgrTipo === 'ingreso' ? 'actualizar_ingreso' : 'actualizar_egreso',
-                    id: r.idSheet || r.id,
-                    proveedor: r.proveedor,
-                    concepto: r.concepto,
-                    imagen: url
-                })});
-                renderIngEgr(ingEgrTipo);
-            });
-        }
+    const _tieneNuevaImg = window._editIngEgrImgData && window._editIngEgrImgData.startsWith && window._editIngEgrImgData.startsWith('data:');
+    if (window._editIngEgrImgData === '') {
+        r.imagen = '';
     }
-
-    // Solo actualizar proveedor y concepto — NO sobreescribir montos
-    const payload = {
-        tipo: ingEgrTipo === 'ingreso' ? 'actualizar_ingreso' : 'actualizar_egreso',
-        id: r.idSheet || r.id,
-        proveedor: r.proveedor,
-        concepto: r.concepto,
-        imagen: r.imagen || ''
-    };
-    editarEnSheet(payload);
+    if (_tieneNuevaImg) {
+        // Subir imagen primero, luego guardar TODO junto
+        subirFotoImgBB(window._editIngEgrImgData, function(url) {
+            if (!url) return;
+            r.imagen = url;
+            editarEnSheet({
+                tipo: ingEgrTipo === 'ingreso' ? 'actualizar_ingreso' : 'actualizar_egreso',
+                id: r.idSheet || r.id,
+                proveedor: r.proveedor,
+                concepto: r.concepto,
+                imagen: url
+            });
+            renderIngEgr(ingEgrTipo);
+        });
+    } else {
+        // Sin imagen nueva: guardar inmediatamente
+        const payload = {
+            tipo: ingEgrTipo === 'ingreso' ? 'actualizar_ingreso' : 'actualizar_egreso',
+            id: r.idSheet || r.id,
+            proveedor: r.proveedor,
+            concepto: r.concepto,
+            imagen: r.imagen || ''
+        };
+        editarEnSheet(payload);
+    }
 
     // Ticket: enviar por separado usando el handler específico (solo egresos)
     if (ingEgrTipo === 'egreso' && window._editIngEgrTicketData !== undefined && window._editIngEgrTicketData !== null) {
@@ -13958,8 +13957,8 @@ function verDetalleProveedor(tipo, id){
 
         // SINCRONIZACIÓN GOOGLE SHEETS — Tiempo real (30s)
         // ══════════════════════════════════════════════════════
-        const SHEETS_URL  = 'https://script.google.com/macros/s/AKfycbxtJ5jkm_AaSrfkbJmqBH9gc5GtJVxXzEENm1zWW6LbiDhq8NXhG20ZhL_g9hnDcVDl/exec';
-        const SHEETS_URL2 = 'https://script.google.com/macros/s/AKfycbxtJ5jkm_AaSrfkbJmqBH9gc5GtJVxXzEENm1zWW6LbiDhq8NXhG20ZhL_g9hnDcVDl/exec';
+        const SHEETS_URL  = 'https://script.google.com/macros/s/AKfycbw1cfPmEpYZzIDzwvsvNpHc7vt7yA8tfq1gkdUpsx9tYMTkWA5-MMmKVqtVttTLysqT/exec';
+        const SHEETS_URL2 = 'https://script.google.com/macros/s/AKfycbw1cfPmEpYZzIDzwvsvNpHc7vt7yA8tfq1gkdUpsx9tYMTkWA5-MMmKVqtVttTLysqT/exec';
         // ── COLA DE ENVÍOS PENDIENTES ──────────────────────────────────────
         // Cuando no hay internet, los POSTs se guardan en localStorage.
         // Al recuperar conexión se reenvían automáticamente.
@@ -15239,7 +15238,7 @@ if (indicator) indicator.classList.remove('hidden');
                 // Refrescar vista si está visible
                 var _vistaLc = document.getElementById('vistaListaCat');
                 if (_vistaLc && !_vistaLc.classList.contains('hidden')) {
-                    if (typeof renderListaCat === 'function') renderListaCat(window._listaCatTab || 'ingresos');
+                    if (typeof renderListaCat === 'function') renderListaCat(window._listaCatTab || 'ingresos', false);
                 }
                 // Recalcular caja ahora que tenemos todos los datos (egresos, pagos, etc.)
                 actualizarResumenCaja();
@@ -16461,6 +16460,11 @@ console.log("FILTRADAS:", filtradas.length);
             const _pinP=_smp(_sheetPagoIngNeg,'IDINGRESOSNEGOCIO',_idsIN)+_smp(_sheetPagoIngNeg,'idIngNeg',_idsIN); const pagoEfIngNeg=_pinEf+_pinP, pagoCrIngNeg=Math.max(0,_pinCr-_pinP);
             const _pENA=(_pagoEgrNegSheet||_sheetPagoEgrNeg||[]); let _penEf=0,_penCr=0; const _idsEN=new Set(); (_sheetEgresosNegocio||[]).forEach(r=>{ const fn=parseFechaNum(r.fechaISO||r.fecha||''); if(!enRango(fn))return; const id=String(r.id||r.IDEGRESOSNEGOCIO||'').trim(); if(id)_idsEN.add(id); _penEf+=Number(r.efectivo||0); _penCr+=Number(r.credito||0); });
             const _penP=_smp(_pENA,'IDEGRESOSNEGOCIO',_idsEN)+_smp(_pENA,'idEgrNeg',_idsEN); const pagoEfEgrNeg=_penEf+_penP, pagoCrEgrNeg=Math.max(0,_penCr-_penP);
+            // Crédito cobrado = monto ya pagado de la deuda (tabla pagos, ID coincidente)
+            const creditoCobradoVentas  = _pvP;
+            const creditoCobradoCompras = _pcP;
+            const creditoCobradoIngNeg  = _pinP;
+            const creditoCobradoEgrNeg  = _penP;
 
             // ── Totales generales — respetan categoría Y filtro ef/cr ──
             const _cat = _resumenCategoria;
@@ -16698,155 +16702,64 @@ console.log("FILTRADAS:", filtradas.length);
                 const _scDebugE = [...new Set((_sheetEgresos||[]).map(r=>(r.proveedor||r.supercategoria||'').trim()))].slice(0,10);
                 console.log('[RESUMEN SC EGRESOS]', _scDebugE);
 
-                // _ingPropios = PAGO EFECTIVO/CREDITO/TOTAL de INGRESOS PROPIOS + MONTO de PAGO INGRESOS (mismo IDINGRESOS, FECHA ORIGINAL en rango)
+                // Helper: calcular valor por SC para cada filtro
+                // EFECTIVO = r.efectivo + pagos (mismo ID, FECHA ORIGINAL en rango)
+                // CREDITO  = r.credito (PAGO CREDITO directo del sheet, sin restar pagos)
+                // TOTAL    = r.total
+
+                // ── _ingPropios: SC = INGRESOS PROPIOS ──
                 _ingPropios = 0;
-                const _idsIngPropiosCard = new Set();
-                const _idIngPropiosLTSCard = {};
-                (_sheetIngresos||[]).forEach(r => {
-                    if ((r.proveedor||r.supercategoria||'').toUpperCase().trim() !== 'INGRESOS PROPIOS') return;
-                    const sid = String(r.idSheet||'').trim();
-                    const lid = String(r.id||'').trim();
-                    if (sid) _idsIngPropiosCard.add(sid);
-                    if (lid && sid) _idIngPropiosLTSCard[lid] = sid;
-                });
                 (_sheetIngresos||[]).forEach(r => {
                     if (!enRango(parseFechaNum(r.fechaISO||r.fecha||''))) return;
                     if ((r.proveedor||r.supercategoria||'').toUpperCase().trim() !== 'INGRESOS PROPIOS') return;
-                    if (_resumenFiltro === 'total') {
-                        // TOTAL = PAGO TOTAL del sheet directamente
-                        _ingPropios += Number(r.total||0);
-                    } else if (_resumenFiltro === 'efectivo') {
-                        _ingPropios += Number(r.efectivo||0);
-                    } else {
-                        _ingPropios += Number(r.credito||0);
-                    }
+                    if (_resumenFiltro === 'efectivo')     _ingPropios += Number(r.efectivo||0);
+                    else if (_resumenFiltro === 'credito') _ingPropios += Number(r.credito||0);
+                    else                                   _ingPropios += Number(r.total||0);
                 });
-                if (_resumenFiltro === 'efectivo') {
-                    (_sheetPagoIngresos||[]).forEach(p => {
-                        let _pid = String(p.IDINGRESOS||p.idingresos||'').trim();
-                        if (_pid && !_idsIngPropiosCard.has(_pid)) _pid = _idIngPropiosLTSCard[_pid] || _pid;
-                        if (!_pid || !_idsIngPropiosCard.has(_pid)) return;
-                        if (!enRango(_fnumPago(p))) return;
-                        _ingPropios += Number(p.MONTO||p.monto||0);
-                    });
-                } else if (_resumenFiltro === 'credito') {
-                    (_sheetPagoIngresos||[]).forEach(p => {
-                        let _pid = String(p.IDINGRESOS||p.idingresos||'').trim();
-                        if (_pid && !_idsIngPropiosCard.has(_pid)) _pid = _idIngPropiosLTSCard[_pid] || _pid;
-                        if (!_pid || !_idsIngPropiosCard.has(_pid)) return;
-                        if (!enRango(_fnumPago(p))) return;
-                        _ingPropios -= Number(p.MONTO||p.monto||0);
-                    });
-                    _ingPropios = Math.max(0, _ingPropios);
-                }
 
-                // _ingAjenos = PAGO EFECTIVO/CREDITO/TOTAL de INGRESOS AJENOS + MONTO de PAGO INGRESOS (mismo IDINGRESOS, FECHA ORIGINAL en rango)
+
+                // ── _ingAjenos: SC = INGRESOS AJENOS ──
                 _ingAjenos = 0;
-                const _idsIngAjenosCard = new Set();
-                const _idIngAjenosLTSCard = {};
-                (_sheetIngresos||[]).forEach(r => {
-                    if ((r.proveedor||r.supercategoria||'').toUpperCase().trim() !== 'INGRESOS AJENOS') return;
-                    const sid = String(r.idSheet||'').trim();
-                    const lid = String(r.id||'').trim();
-                    if (sid) _idsIngAjenosCard.add(sid);
-                    if (lid && sid) _idIngAjenosLTSCard[lid] = sid;
-                });
                 (_sheetIngresos||[]).forEach(r => {
                     if (!enRango(parseFechaNum(r.fechaISO||r.fecha||''))) return;
                     if ((r.proveedor||r.supercategoria||'').toUpperCase().trim() !== 'INGRESOS AJENOS') return;
-                    if (_resumenFiltro==='total') { _ingAjenos += Number(r.total||0); } else if (_resumenFiltro==='efectivo') { _ingAjenos += Number(r.efectivo||0); } else { _ingAjenos += Number(r.credito||0); }
+                    if (_resumenFiltro === 'efectivo')     _ingAjenos += Number(r.efectivo||0);
+                    else if (_resumenFiltro === 'credito') _ingAjenos += Number(r.credito||0);
+                    else                                   _ingAjenos += Number(r.total||0);
                 });
-                if (_resumenFiltro === 'efectivo') {
-                    (_sheetPagoIngresos||[]).forEach(p => {
-                        let _pid = String(p.IDINGRESOS||p.idingresos||'').trim();
-                        if (_pid && !_idsIngAjenosCard.has(_pid)) _pid = _idIngAjenosLTSCard[_pid] || _pid;
-                        if (!_pid || !_idsIngAjenosCard.has(_pid)) return;
-                        if (!enRango(_fnumPago(p))) return;
-                        _ingAjenos += Number(p.MONTO||p.monto||0);
-                    });
-                } else if (_resumenFiltro === 'credito') {
-                    (_sheetPagoIngresos||[]).forEach(p => {
-                        let _pid = String(p.IDINGRESOS||p.idingresos||'').trim();
-                        if (_pid && !_idsIngAjenosCard.has(_pid)) _pid = _idIngAjenosLTSCard[_pid] || _pid;
-                        if (!_pid || !_idsIngAjenosCard.has(_pid)) return;
-                        if (!enRango(_fnumPago(p))) return;
-                        _ingAjenos -= Number(p.MONTO||p.monto||0);
-                    });
-                    _ingAjenos = Math.max(0, _ingAjenos);
-                }
 
-                // ── Calcular EGRESOS PROPIOS / AJENOS ──────────────────────────────
-                // _egrPropios card = egresos supercategoría EGRESOS PROPIOS + PAGO EGRESOS coincidente por IDEGRESOS
+
+                // ── _egrPropios: SC = EGRESOS PROPIOS ──
                 let _egrPropios = 0;
-                const _idsEgrPropiosCard = new Set();
-                const _idEgrPropiosLTSCard = {};
-                (_sheetEgresos||[]).forEach(r => {
-                    if ((r.proveedor||r.supercategoria||'').toUpperCase().trim() !== 'EGRESOS PROPIOS') return;
-                    const sid = String(r.idSheet||'').trim();
-                    const lid = String(r.id||'').trim();
-                    if (sid) _idsEgrPropiosCard.add(sid);
-                    if (lid && sid) _idEgrPropiosLTSCard[lid] = sid;
-                });
                 (_sheetEgresos||[]).forEach(r => {
                     if (!enRango(parseFechaNum(r.fechaISO||r.fecha||''))) return;
-                    if ((r.proveedor||r.supercategoria||'').toUpperCase().trim() !== 'EGRESOS PROPIOS') return;
-                    if (_resumenFiltro==='total') { _egrPropios += Number(r.total||0); } else if (_resumenFiltro==='efectivo') { _egrPropios += Number(r.efectivo||0); } else { _egrPropios += Number(r.credito||0); }
+                    const _sc = (r.proveedor||r.supercategoria||r['SUPER CATEGORIA']||'').toUpperCase().trim();
+                    if (_sc !== 'EGRESOS PROPIOS') return;
+                    if (_resumenFiltro === 'efectivo')     _egrPropios += Number(r.efectivo||0);
+                    else if (_resumenFiltro === 'credito') _egrPropios += Number(r.credito||0);
+                    else                                   _egrPropios += Number(r.total||r.pagoTotal||0);
                 });
-                if (_resumenFiltro === 'efectivo') {
-                    (_sheetPagoEgresos||[]).forEach(p => {
-                        let _pid = String(p.IDEGRESOS||p.idEgreso||p.idegresos||'').trim();
-                        if (_pid && !_idsEgrPropiosCard.has(_pid)) _pid = _idEgrPropiosLTSCard[_pid] || _pid;
-                        if (!_pid || !_idsEgrPropiosCard.has(_pid)) return;
-                        if (!enRango(_fnumPago(p))) return;
-                        _egrPropios += Number(p.monto||p.MONTO||0);
-                    });
-                } else if (_resumenFiltro === 'credito') {
-                    (_sheetPagoEgresos||[]).forEach(p => {
-                        let _pid = String(p.IDEGRESOS||p.idEgreso||p.idegresos||'').trim();
-                        if (_pid && !_idsEgrPropiosCard.has(_pid)) _pid = _idEgrPropiosLTSCard[_pid] || _pid;
-                        if (!_pid || !_idsEgrPropiosCard.has(_pid)) return;
-                        if (!enRango(_fnumPago(p))) return;
-                        _egrPropios -= Number(p.monto||p.MONTO||0);
-                    });
-                    _egrPropios = Math.max(0, _egrPropios);
-                }
-
-                // _egrAjenos = PAGO EFECTIVO/CREDITO/TOTAL de EGRESOS AJENOS + MONTO de PAGO EGRESOS (mismo IDEGRESOS, FECHA ORIGINAL en rango)
+                console.log('[_egrPropios] total:', _egrPropios, '| registros EGRESOS PROPIOS:', (_sheetEgresos||[]).filter(r=>{ const s=(r.proveedor||r.supercategoria||'').toUpperCase().trim(); return s==='EGRESOS PROPIOS'; }).length, '| total _sheetEgresos:', (_sheetEgresos||[]).length);
+                if ((_sheetEgresos||[])[0]) console.log('[_egrPropios] muestra r[0].proveedor:', (_sheetEgresos||[])[0].proveedor, '| r[0].total:', (_sheetEgresos||[])[0].total);
+                // ── _egrAjenos: SC = EGRESOS AJENOS ──
                 _egrAjenos = 0;
-                const _idsEgrAjenosCard = new Set();
-                const _idEgrAjenosLTSCard = {};
-                (_sheetEgresos||[]).forEach(r => {
-                    if ((r.proveedor||r.supercategoria||'').toUpperCase().trim() !== 'EGRESOS AJENOS') return;
-                    const sid = String(r.idSheet||'').trim();
-                    const lid = String(r.id||'').trim();
-                    if (sid) _idsEgrAjenosCard.add(sid);
-                    if (lid && sid) _idEgrAjenosLTSCard[lid] = sid;
-                });
                 (_sheetEgresos||[]).forEach(r => {
                     if (!enRango(parseFechaNum(r.fechaISO||r.fecha||''))) return;
                     if ((r.proveedor||r.supercategoria||'').toUpperCase().trim() !== 'EGRESOS AJENOS') return;
-                    if (_resumenFiltro==='total') { _egrAjenos += Number(r.total||0); } else if (_resumenFiltro==='efectivo') { _egrAjenos += Number(r.efectivo||0); } else { _egrAjenos += Number(r.credito||0); }
+                    if (_resumenFiltro === 'efectivo')     _egrAjenos += Number(r.efectivo||0);
+                    else if (_resumenFiltro === 'credito') _egrAjenos += Number(r.credito||0);
+                    else                                   _egrAjenos += Number(r.total||0);
                 });
-                if (_resumenFiltro === 'efectivo') {
-                    (_sheetPagoEgresos||[]).forEach(p => {
-                        let _pid = String(p.IDEGRESOS||p.idEgreso||p.idegresos||'').trim();
-                        if (_pid && !_idsEgrAjenosCard.has(_pid)) _pid = _idEgrAjenosLTSCard[_pid] || _pid;
-                        if (!_pid || !_idsEgrAjenosCard.has(_pid)) return;
-                        if (!enRango(_fnumPago(p))) return;
-                        _egrAjenos += Number(p.monto||p.MONTO||0);
-                    });
-                } else if (_resumenFiltro === 'credito') {
-                    (_sheetPagoEgresos||[]).forEach(p => {
-                        let _pid = String(p.IDEGRESOS||p.idEgreso||p.idegresos||'').trim();
-                        if (_pid && !_idsEgrAjenosCard.has(_pid)) _pid = _idEgrAjenosLTSCard[_pid] || _pid;
-                        if (!_pid || !_idsEgrAjenosCard.has(_pid)) return;
-                        if (!enRango(_fnumPago(p))) return;
-                        _egrAjenos -= Number(p.monto||p.MONTO||0);
-                    });
-                    _egrAjenos = Math.max(0, _egrAjenos);
-                }
 
-                const _sfx = _resumenFiltro==='efectivo' ? ' EFECTIVO' : _resumenFiltro==='credito' ? ' CRÉDITO' : '';
+                // Guardar en window para el TOTAL GENERAL
+                window.__persIngPropios = _ingPropios;
+                window.__persIngAjenos  = _ingAjenos;
+                window.__persGanV       = _ganV;
+                window.__persEgrPropios = _egrPropios;
+                window.__persEgrAjenos  = _egrAjenos;
+
+
+                                const _sfx = _resumenFiltro==='efectivo' ? ' EFECTIVO' : _resumenFiltro==='credito' ? ' CRÉDITO' : '';
 
                 document.getElementById('resumenKpis').innerHTML =
                     '<div style="grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:12px;">'
@@ -16916,10 +16829,11 @@ console.log("FILTRADAS:", filtradas.length);
 
                 // ── 1. VENTAS TOTALES S/ GANANCIAS: (ventas tabla + pago ventas) - ganancias ──
                 const _vGanFiltro = _resumenFiltro==='efectivo' ? ganEf : _resumenFiltro==='credito' ? ganCr : ganTotal;
-                const _ventasPagos = _resumenFiltro==='efectivo' ? (vEf + pvTotal)
-                                   : _resumenFiltro==='credito'  ? vCr
-                                   : (vTotal + pvTotal);
-                const _ventasSinGan = Math.max(0, _ventasPagos - _vGanFiltro);
+                const _ventasPagoTotal = _resumenFiltro==='efectivo' ? vEf
+                                       : _resumenFiltro==='credito'  ? vCr
+                                       : vTotal;
+                const _ventasSinGan = Math.max(0, _ventasPagoTotal - _vGanFiltro);
+                window.__ventasSinGan   = _ventasSinGan;
 
                 // ── 2. VENTAS CASA ERAZO: sumar dineroRecuperado de ventas cuyo cliente === 'CASA ERAZO' ──
                 let _casaErazoNeg = 0, _casaErazoCantNeg = 0;
@@ -16934,6 +16848,23 @@ console.log("FILTRADAS:", filtradas.length);
                     _casaErazoNeg += (v.items||[]).reduce((s,i)=>s+Number(i.dineroRecuperado||0), 0);
                     _casaErazoCantNeg++;
                 });
+                window.__casaErazoNeg   = _casaErazoNeg;
+
+                // ── 2b. VENTAS ERROR VENTA: sumar dineroRecuperado donde cliente = 'ERROR VENTA' o 'ERROR VENTAS' ──
+                let _errorVentaTotal = 0, _errorVentaCant = 0;
+                const _vistasEV = new Set();
+                (_sheetVentas||[]).forEach(v => {
+                    const uid = String(v.id||'').trim();
+                    if (!uid || _vistasEV.has(uid)) return;
+                    _vistasEV.add(uid);
+                    const fnum = parseFechaNum(v.fechaISO||v.fecha||'');
+                    if (!enRango(fnum)) return;
+                    const cl = String(v.cliente||'').toUpperCase().trim();
+                    if (cl !== 'ERROR VENTA' && cl !== 'ERROR VENTAS') return;
+                    _errorVentaTotal += (v.items||[]).reduce((s,i)=>s+Number(i.dineroRecuperado||0), 0);
+                    _errorVentaCant++;
+                });
+                window.__errorVentaTotal = _errorVentaTotal;
 
                 // ── 3. INGRESOS NEGOCIO TOTAL: tabla _sheetIngresosNegocio, columna pagoTotal ──
                 let _ingNegTotal = 0;
@@ -16969,14 +16900,32 @@ console.log("FILTRADAS:", filtradas.length);
                     // Card 1: VENTAS TOTALES S/ GANANCIAS
                     +   '<div class="glass-card rounded-2xl p-4 border" style="border-color:#10b98155;background:linear-gradient(135deg,#052e1a 0%,#0f172a 100%);">'
                     +     '<p style="font-size:9px;font-weight:900;text-transform:uppercase;color:#10b981;margin-bottom:6px;letter-spacing:.08em;">▲ VENTAS TOTALES S/ GANANCIAS</p>'
-                    +     '<p style="font-size:1.6rem;font-weight:900;font-family:monospace;color:#34d399;">$' + Utils.fmt(_ventasSinGan) + '</p>'
-                    +     '<p style="font-size:7px;color:#64748b;margin-top:4px;">Ventas + Pago Ventas − Ganancias</p>'
+                    +     '<p style="font-size:1.6rem;font-weight:900;font-family:monospace;color:#34d399;">$' + Utils.fmt(_resumenFiltro==='efectivo' ? Math.max(0,pagoEfVentas-ganEf) : _resumenFiltro==='credito' ? Math.max(0,_pvCr-creditoCobradoVentas-ganCr) : _ventasSinGan) + '</p>'
+                    +     '<p style="font-size:7px;color:#64748b;margin-top:4px;">Ventas Pago Total − Ganancias</p>'
                     +   '</div>'
+
+                    // Card 1b: VENTAS A CASA ERAZO — ocultar en crédito
+                    + (_resumenFiltro==='credito' ? '' :
+                      '<div class="glass-card rounded-2xl p-4 border" style="border-color:#f9731655;background:linear-gradient(135deg,#1a0800 0%,#0f172a 100%);">'
+                    +   '<p style="font-size:9px;font-weight:900;text-transform:uppercase;color:#f97316;margin-bottom:6px;letter-spacing:.08em;">🏠 VENTAS A CASA ERAZO</p>'
+                    +   '<p style="font-size:1.6rem;font-weight:900;font-family:monospace;color:#fdba74;">$' + Utils.fmt(_casaErazoNeg) + '</p>'
+                    +   '<div style="display:flex;gap:8px;margin-top:4px;"><span style="font-size:8px;font-weight:700;color:#94a3b8;">Ventas: ' + _casaErazoCantNeg + '</span></div>'
+                    +   '<p style="font-size:7px;color:#64748b;margin-top:2px;">Suma Dinero Recuperado</p>'
+                    + '</div>')
+
+                    // Card 1c: ERROR VENTA — ocultar en crédito
+                    + (_resumenFiltro==='credito' ? '' :
+                      '<div class="glass-card rounded-2xl p-4 border" style="border-color:#ef444455;background:linear-gradient(135deg,#2d0a0a 0%,#0f172a 100%);">'
+                    +   '<p style="font-size:9px;font-weight:900;text-transform:uppercase;color:#ef4444;margin-bottom:6px;letter-spacing:.08em;">❌ ERROR VENTA</p>'
+                    +   '<p style="font-size:1.6rem;font-weight:900;font-family:monospace;color:#f87171;">$' + Utils.fmt(_errorVentaTotal) + '</p>'
+                    +   '<div style="display:flex;gap:8px;margin-top:4px;"><span style="font-size:8px;font-weight:700;color:#94a3b8;">Ventas: ' + _errorVentaCant + '</span></div>'
+                    +   '<p style="font-size:7px;color:#64748b;margin-top:2px;">Suma Dinero Recuperado</p>'
+                    + '</div>')
 
                     // Card 2: INGRESOS NEGOCIO TOTAL
                     +   '<div class="glass-card rounded-2xl p-4 border" style="border-color:#06b6d455;background:linear-gradient(135deg,#041520 0%,#0f172a 100%);">'
                     +     '<p style="font-size:9px;font-weight:900;text-transform:uppercase;color:#06b6d4;margin-bottom:6px;letter-spacing:.08em;">▲ INGRESOS NEGOCIO TOTAL</p>'
-                    +     '<p style="font-size:1.6rem;font-weight:900;font-family:monospace;color:#67e8f9;">$' + Utils.fmt(_ingNegTotal) + '</p>'
+                    +     '<p style="font-size:1.6rem;font-weight:900;font-family:monospace;color:#67e8f9;">$' + Utils.fmt(_resumenFiltro==='efectivo' ? pagoEfIngNeg : _resumenFiltro==='credito' ? Math.max(0,_pinCr-creditoCobradoIngNeg) : _ingNegTotal) + '</p>'
                     +     '<p style="font-size:7px;color:#64748b;margin-top:4px;">Tabla Ingresos Negocio — Pago Total</p>'
                     +   '</div>'
 
@@ -16989,17 +16938,51 @@ console.log("FILTRADAS:", filtradas.length);
                     // Card 4: COMPRAS TOTAL
                     +   '<div class="glass-card rounded-2xl p-4 border" style="border-color:#f9731655;background:linear-gradient(135deg,#1a0800 0%,#0f172a 100%);">'
                     +     '<p style="font-size:9px;font-weight:900;text-transform:uppercase;color:#f97316;margin-bottom:6px;letter-spacing:.08em;">▼ COMPRAS TOTAL</p>'
-                    +     '<p style="font-size:1.6rem;font-weight:900;font-family:monospace;color:#fdba74;">$' + Utils.fmt(_comprasTotal) + '</p>'
+                    +     '<p style="font-size:1.6rem;font-weight:900;font-family:monospace;color:#fdba74;">$' + Utils.fmt(_resumenFiltro==='efectivo' ? pagoEfCompras : _resumenFiltro==='credito' ? Math.max(0,_pcCr-creditoCobradoCompras) : _comprasTotal) + '</p>'
                     +     '<p style="font-size:7px;color:#64748b;margin-top:4px;">Tabla Compras — Pago Total</p>'
                     +   '</div>'
 
                     // Card 5: EGRESOS NEGOCIO TOTAL
                     +   '<div class="glass-card rounded-2xl p-4 border" style="border-color:#ec489955;background:linear-gradient(135deg,#200515 0%,#0f172a 100%);">'
                     +     '<p style="font-size:9px;font-weight:900;text-transform:uppercase;color:#ec4899;margin-bottom:6px;letter-spacing:.08em;">▼ EGRESOS NEGOCIO TOTAL</p>'
-                    +     '<p style="font-size:1.6rem;font-weight:900;font-family:monospace;color:#f9a8d4;">$' + Utils.fmt(_egrNegTotal) + '</p>'
+                    +     '<p style="font-size:1.6rem;font-weight:900;font-family:monospace;color:#f9a8d4;">$' + Utils.fmt(_resumenFiltro==='efectivo' ? pagoEfEgrNeg : _resumenFiltro==='credito' ? Math.max(0,_penCr-creditoCobradoEgrNeg) : _egrNegTotal) + '</p>'
                     +     '<p style="font-size:7px;color:#64748b;margin-top:4px;">Tabla Egresos Negocio — Pago Total</p>'
                     +   '</div>'
 
+                    + '</div>'
+                    + '</div>';
+            }
+
+            // ── Cards PAGO INGRESOS / PAGO EGRESOS — en EFECTIVO y CRÉDITO ──
+            window.__totPI = 0; window.__totPE = 0;
+            if (_resumenFiltro === 'efectivo' || _resumenFiltro === 'credito') {
+                let _totPI = 0;
+                (_sheetPagoIngresos||[]).forEach(p => {
+                    if (!enRango(_fnumPago(p))) return;
+                    _totPI += Number(p.MONTO||p.monto||0);
+                });
+                let _totPE = 0;
+                (_sheetPagoEgresos||[]).forEach(p => {
+                    if (!enRango(_fnumPago(p))) return;
+                    _totPE += Number(p.MONTO||p.monto||0);
+                });
+                const _labelPI = _resumenFiltro === 'credito' ? '💰 PAGO INGRESOS (COBRADO)' : '💰 PAGO INGRESOS';
+                const _labelPE = _resumenFiltro === 'credito' ? '💸 PAGO EGRESOS (PAGADO)'   : '💸 PAGO EGRESOS';
+                const _subPI   = _resumenFiltro === 'credito' ? 'Crédito cobrado · FECHA ORIGINAL en rango' : 'Monto cobrado · FECHA ORIGINAL en rango';
+                const _subPE   = _resumenFiltro === 'credito' ? 'Crédito pagado · FECHA ORIGINAL en rango'  : 'Monto pagado · FECHA ORIGINAL en rango';
+                window.__totPI = _totPI;
+                window.__totPE = _totPE;
+                document.getElementById('resumenKpis').innerHTML +=
+                    '<div style="grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:4px;">'
+                    + '<div class="glass-card rounded-2xl p-4 border" style="border-color:#34d39955;background:linear-gradient(135deg,#021a0e 0%,#0f172a 100%);">'
+                    +   '<p style="font-size:9px;font-weight:900;text-transform:uppercase;color:#34d399;margin-bottom:6px;letter-spacing:.08em;">' + _labelPI + '</p>'
+                    +   '<p style="font-size:1.6rem;font-weight:900;font-family:monospace;color:#6ee7b7;">$' + Utils.fmt(_totPI) + '</p>'
+                    +   '<p style="font-size:7px;color:#64748b;margin-top:4px;">' + _subPI + '</p>'
+                    + '</div>'
+                    + '<div class="glass-card rounded-2xl p-4 border" style="border-color:#f8717155;background:linear-gradient(135deg,#1a0505 0%,#0f172a 100%);">'
+                    +   '<p style="font-size:9px;font-weight:900;text-transform:uppercase;color:#f87171;margin-bottom:6px;letter-spacing:.08em;">' + _labelPE + '</p>'
+                    +   '<p style="font-size:1.6rem;font-weight:900;font-family:monospace;color:#fca5a5;">$' + Utils.fmt(_totPE) + '</p>'
+                    +   '<p style="font-size:7px;color:#64748b;margin-top:4px;">' + _subPE + '</p>'
                     + '</div>'
                     + '</div>';
             }
@@ -17011,11 +16994,8 @@ console.log("FILTRADAS:", filtradas.length);
                     let _entPropios = 0;
                     let _salPropios = 0;
                     if (_resumenCategoria === 'negocio') {
-                        // NEGOCIO: entradas = ventas-ganancias, salidas = compras
-                        const _vEntPropios = _resumenFiltro==='efectivo' ? (vEf - vGanEf)
-                                           : _resumenFiltro==='credito'  ? (vCr - vGanCr)
-                                           : (vTotal - vGanTotal);
-                        _entPropios = Math.max(0, _vEntPropios);
+                        // NEGOCIO: entradas = ventasSinGan + casaErazo + errorVenta
+                        _entPropios = (window.__ventasSinGan||0) + (window.__casaErazoNeg||0) + (window.__errorVentaTotal||0);
                         _salPropios = _cmpT;
                     } else {
                         // PERSONAL: entradas = _ingPropios (ya incluye PAGO INGRESOS por IDINGRESOS) + GANANCIAS
@@ -17137,6 +17117,7 @@ console.log("FILTRADAS:", filtradas.length);
                         // TOTAL SALIDAS = compras + egresos + egresos negocio
                         _totSal = _cmpT + _egrT + _egrNT;
                     } else {
+                        // PERSONAL y NEGOCIO: usar __entPropios/__salPropios + __entAjenos/__salAjenos
                         _totEnt = (window.__entPropios||0) + (window.__entAjenos||0);
                         _totSal = (window.__salPropios||0) + (window.__salAjenos||0);
                     }
@@ -20932,10 +20913,13 @@ function _lcCargarDesdeStorage() {
     } catch(e) {}
 }
 
-function renderListaCat(tab) {
+function renderListaCat(tab, clearSearch) {
     if (tab) {
         window._listaCatTab = tab;
-        var _b = document.getElementById('lcBuscarInput'); if (_b) _b.value = '';
+        // Solo limpiar búsqueda si se pide explícitamente (cambio de tab manual)
+        if (clearSearch) {
+            var _b = document.getElementById('lcBuscarInput'); if (_b) _b.value = '';
+        }
     }
     _lcCargarDesdeStorage();
     var esIng  = window._listaCatTab === 'ingresos';
@@ -21147,8 +21131,15 @@ function lcImgUpload(input, idx) {
 
 function lcImgGuardar(item, url) {
     item.imagen = url;
+    // Guardar en localStorage inmediatamente
+    var hoja = window._listaCatTab || 'egresos';
+    if (hoja === 'ingresos') {
+        try { localStorage.setItem('natanael_lista_ingresos', JSON.stringify(window._listaIngresos||[])); } catch(e) {}
+    } else {
+        try { localStorage.setItem('natanael_lista_egresos', JSON.stringify(window._listaEgresos||[])); } catch(e) {}
+    }
     if (typeof fetchSheets === 'function')
-        fetchSheets({ method: 'POST', body: JSON.stringify({ tipo: 'actualizar_lista_cat', hoja: window._listaCatTab, id: item.id, nombre: item.nombre, monto: item.monto || 0, imagen: url }) });
+        fetchSheets({ method: 'POST', body: JSON.stringify({ tipo: 'actualizar_lista_cat', hoja: hoja, id: item.id, nombre: item.nombre, monto: item.monto || 0, imagen: url }) });
     if (typeof mostrarToast === 'function') mostrarToast('✓ Imagen guardada');
     renderListaCat();
 }
